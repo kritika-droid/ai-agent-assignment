@@ -1,0 +1,11 @@
+IT Security Policy
+
+1. Employees must use strong and unique passwords for all company systems.
+2. Passwords must be changed every 90 days.
+3. Company devices should be locked when not in use.
+4. Sensitive data must not be stored on personal devices.
+5. Employees should report any suspected security incidents immediately.
+6. Access to company systems is granted based on job role.
+7. Public Wi-Fi should not be used to access company systems.
+8. Antivirus and security updates must be kept up to date.
+9. Unauthorized software installation is strictly prohibited.

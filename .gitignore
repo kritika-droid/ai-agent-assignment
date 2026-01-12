@@ -1,0 +1,7 @@
+﻿__pycache__/
+*.pyc
+vector_store/
+ai-agent.zip
+.env
+.env.*
+.vscode/
