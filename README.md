@@ -140,7 +140,5 @@ gunicorn main:app --bind 0.0.0.0:8000 --workers 1 --timeout 600
 - Replace Chroma with Azure AI Search or Pinecone
 - Improve decision-making using LLM-based routing
 - Add persistent memory (Redis / Database)
-
-Dockerize the application
-
-Add Azure Monitor and structured logging
+- Dockerize the application
+- Add Azure Monitor and structured logging
