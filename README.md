@@ -27,7 +27,26 @@ The system is exposed via a FastAPI backend and is designed for deployment on Az
 - Embeddings (HuggingFace)
 - LLM (OpenAI / Azure OpenAI)
 
-> 📌 Architecture diagram and screenshots can be added here if required.
+### 📌 Screenshots:
+#### 1. Azure Deployment Successful
+This shows that the FastAPI application is successfully deployed on Azure App Service.
+
+![Azure Deployment Success](screenshots/azure-deployment-success.png)
+
+---
+
+#### 2. API Health Check - Application Running
+This confirms that the FastAPI backend is running and accessible via the public URL. 
+
+![api running](screenshots/api-running.png)
+
+#### 3. RAG Working - Query Answered from Documents
+This demonstrates Retrieval-Augmented Generation (RAG), where the agent retrieves relevant internal documents and answers the query based on them.
+
+Example query:
+> *"What is the leave policy?"*
+
+![RAG Working Answer](screenshots/rag-working-answer.png)
 
 ---
 
