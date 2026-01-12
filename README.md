@@ -27,7 +27,13 @@ The system is exposed via a FastAPI backend and is designed for deployment on Az
 - Embeddings (HuggingFace)
 - LLM (OpenAI / Azure OpenAI)
 
-### 📌 Screenshots:
+---
+
+### 📌 Screenshots included:
+- Azure App Service deployment
+- API Health Check
+- RAG-based query response
+
 #### 1. Azure Deployment Successful
 This shows that the FastAPI application is successfully deployed on Azure App Service.
 
