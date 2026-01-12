@@ -1,69 +1,102 @@
-from typing import Dict, List, Optional
+from typing import Dict, Optional, List
+import os
+
+from llm import get_llm
+
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.document_loaders import TextLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.schema import HumanMessage, SystemMessage
 
 
 class AIAgent:
     def __init__(self):
         """
-        Initialize embeddings, vector store, and session memory
+        Initializes heavy components ONLY when first needed
+        (Azure-safe lazy initialization)
         """
+
+        # -------- Embeddings --------
         self.embeddings = HuggingFaceEmbeddings(
             model_name="sentence-transformers/all-MiniLM-L6-v2"
         )
 
+        # -------- Vector Store --------
         self.vectorstore = Chroma(
             persist_directory="vector_store",
             embedding_function=self.embeddings
         )
 
-        # Simple in-memory session storage
-        self.memory = {}
+        # -------- Ingest documents once --------
+        if self.vectorstore._collection.count() == 0:
+            self._ingest_documents()
+
+        # -------- Lazy LLM --------
+        self.llm = get_llm()  # Can be None (SAFE)
+
+        # -------- Session Memory --------
+        self.memory: Dict[str, List[Dict]] = {}
 
     # --------------------------------------------------
-    # Decision making: Should we use RAG or not?
+    # Document ingestion
+    # --------------------------------------------------
+    def _ingest_documents(self):
+        docs_path = "data/docs"
+
+        if not os.path.exists(docs_path):
+            print("⚠️ data/docs folder not found. Skipping ingestion.")
+            return
+
+        documents = []
+
+        for file in os.listdir(docs_path):
+            if file.endswith(".txt"):
+                loader = TextLoader(
+                    os.path.join(docs_path, file),
+                    encoding="utf-8"
+                )
+                documents.extend(loader.load())
+
+        if not documents:
+            print("⚠️ No documents found for ingestion.")
+            return
+
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=500,
+            chunk_overlap=50
+        )
+
+        split_docs = splitter.split_documents(documents)
+        self.vectorstore.add_documents(split_docs)
+
+        print(f"✅ Ingested {len(split_docs)} document chunks.")
+
+    # --------------------------------------------------
+    # Decide RAG or not
     # --------------------------------------------------
     def needs_rag(self, query: str) -> bool:
-        """
-        Decide whether the query requires internal documents
-        """
         keywords = [
-            "policy",
-            "leave",
-            "company",
-            "internal",
-            "employee",
-            "refund",
-            "work from home",
-            "salary"
+            "policy", "leave", "company", "internal",
+            "employee", "work from home", "salary",
+            "security", "conduct"
         ]
-
-        query_lower = query.lower()
-        return any(keyword in query_lower for keyword in keywords)
+        return any(k in query.lower() for k in keywords)
 
     # --------------------------------------------------
-    # Tool: Vector search (RAG)
+    # Vector Search
     # --------------------------------------------------
     def retrieve_docs(self, query: str):
-        """
-        Retrieve relevant documents from vector store
-        """
         return self.vectorstore.similarity_search(query, k=3)
 
     # --------------------------------------------------
-    # Core reasoning logic
+    # Core Logic
     # --------------------------------------------------
     def answer(self, query: str, session_id: Optional[str] = None) -> Dict:
-        """
-        Generate an answer using either RAG or direct LLM logic
-        """
 
-        # ---- Load session history (if any) ----
-        history = []
-        if session_id:
-            history = self.memory.get(session_id, [])
+        history = self.memory.get(session_id, []) if session_id else []
 
-        # ---- Case 1: Internal document-based question ----
+        # -------- RAG FLOW --------
         if self.needs_rag(query):
             docs = self.retrieve_docs(query)
 
@@ -71,24 +104,47 @@ class AIAgent:
                 answer = "No relevant internal documents were found."
                 sources = []
             else:
+                context = "\n\n".join(doc.page_content for doc in docs)
                 sources = list(
                     set(doc.metadata.get("source", "unknown") for doc in docs)
                 )
 
-                context = "\n".join(doc.page_content for doc in docs)
+                if self.llm:
+                    messages = [
+                        SystemMessage(
+                            content=(
+                                "You are an AI assistant answering strictly "
+                                "from internal company documents. "
+                                "If the answer is not found, say so."
+                            )
+                        ),
+                        HumanMessage(
+                            content=f"Context:\n{context}\n\nQuestion:\n{query}"
+                        )
+                    ]
+                    answer = self.llm.invoke(messages).content
+                else:
+                    answer = (
+                        "LLM not configured. Showing relevant document context:\n\n"
+                        f"{context[:800]}"
+                    )
 
-                # Placeholder (LLM will replace later)
-                answer = (
-                    "Answer based on internal documents:\n"
-                    f"{context[:500]}..."
-                )
-
-        # ---- Case 2: General question ----
+        # -------- DIRECT ANSWER FLOW --------
         else:
-            answer = "This is a general answer generated directly by the LLM."
+            if self.llm:
+                messages = [
+                    SystemMessage(content="You are a helpful AI assistant."),
+                    HumanMessage(content=query)
+                ]
+                answer = self.llm.invoke(messages).content
+            else:
+                answer = (
+                    "LLM not configured. API is running successfully, "
+                    "but AI responses are disabled."
+                )
             sources = []
 
-        # ---- Save conversation to memory ----
+        # -------- Save memory --------
         if session_id:
             history.append({"query": query, "answer": answer})
             self.memory[session_id] = history
@@ -100,16 +156,21 @@ class AIAgent:
 
 
 # --------------------------------------------------
-# SINGLETON AGENT INSTANCE
+# ✅ LAZY SINGLETON (CRITICAL FIX)
 # --------------------------------------------------
-agent = AIAgent()
+_agent_instance = None
+
+
+def get_agent():
+    global _agent_instance
+    if _agent_instance is None:
+        _agent_instance = AIAgent()
+    return _agent_instance
 
 
 # --------------------------------------------------
-# PUBLIC FUNCTION (USED BY FASTAPI)
+# PUBLIC FUNCTION FOR FASTAPI
 # --------------------------------------------------
 def ask_agent(query: str, session_id: Optional[str] = None) -> Dict:
-    """
-    Public function used by FastAPI / API layer
-    """
+    agent = get_agent()
     return agent.answer(query=query, session_id=session_id)
