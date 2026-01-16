@@ -1,4 +1,4 @@
-# AI Agent with RAG (Azure Deployment)
+# AI Agent with RAG for Internal Policy Querying
 
 ## Overview
 This project implements an AI Agent that intelligently answers user queries either by:
